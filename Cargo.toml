@@ -1,0 +1,18 @@
+[package]
+name = "rust-ansible"
+version = "0.1.0"
+edition = "2021"
+description = "Ansible playbook runner embedded in a single binary using WASIX Python"
+
+[dependencies]
+wasmer = "7.0"
+wasmer-wasix = { version = "0.700", features = ["host-fs"] }
+wasmer-compiler-cranelift = "7.0"
+virtual-fs = "0.700"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
+
+[profile.release]
+lto = true
+strip = true

@@ -1,3 +1,6 @@
+# Rust
+/target/
+
 # WASM artifacts
 *.wasm
 *.wasmu
@@ -8,8 +11,15 @@ __pycache__/
 *.pyo
 .venv/
 
-# Rust
-target/
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # OS
 .DS_Store
+Thumbs.db
+
+# Ansible temp files
+.ansible/

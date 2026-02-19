@@ -1,0 +1,25 @@
+# Test playbook for wasi_local connection plugin
+# Run with: make test-playbook
+- hosts: localhost
+  connection: wasi_local
+  gather_facts: false
+  tasks:
+    - name: Test ping module
+      ansible.builtin.ping:
+      register: ping_result
+
+    - name: Show ping result
+      ansible.builtin.debug:
+        var: ping_result
+
+    - name: Test debug module
+      ansible.builtin.debug:
+        msg: "Hello from WASI ansible!"
+
+    - name: Test set_fact module
+      ansible.builtin.set_fact:
+        test_var: "wasi_works"
+
+    - name: Verify set_fact
+      ansible.builtin.debug:
+        msg: "Variable value: {{ test_var }}"

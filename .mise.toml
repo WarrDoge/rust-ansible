@@ -1,0 +1,56 @@
+[tools]
+wasmer = "latest"
+rust = "latest"
+uv = "latest"
+
+[env]
+WASIX_PYTHON_PACKAGE = "python/python"
+# Set these to your local paths for test tasks:
+#   RUST_ANSIBLE_SITE_PACKAGES = "/path/to/site-packages"
+
+[tasks.setup]
+description = "Install mise tools and verify setup"
+run = """
+mise install
+wasmer --version
+cargo --version
+uv --version
+"""
+
+[tasks.test-wasix]
+description = "Test WASIX Python with threading"
+run = """
+wasmer run python/python -- -c "import threading; t=threading.Thread(target=lambda: print('Threading works!')); t.start(); t.join()"
+"""
+
+[tasks.test-ansible]
+description = "Test ansible import under WASIX (requires RUST_ANSIBLE_SITE_PACKAGES)"
+run = """
+wasmer run python/python \
+  --volume assets/stubs:/stubs \
+  --volume ${RUST_ANSIBLE_SITE_PACKAGES}:/site-packages \
+  --env PYTHONPATH=/stubs:/site-packages \
+  --env HOME=/tmp \
+  --env USER=wasi \
+  -- -c "import ansible; print(f'ansible {ansible.__version__}')"
+"""
+
+[tasks.test-version]
+description = "Test ansible-playbook --version under WASIX (requires RUST_ANSIBLE_SITE_PACKAGES)"
+run = """
+wasmer run python/python \
+  --volume assets/stubs:/stubs \
+  --volume ${RUST_ANSIBLE_SITE_PACKAGES}:/site-packages \
+  --env HOME=/tmp \
+  --env USER=wasi \
+  --env PYTHONPATH=/stubs:/site-packages \
+  -- -m ansible.cli.playbook --version
+"""
+
+[tasks.build]
+description = "Build rust-ansible binary"
+run = "cargo build --release"
+
+[tasks.clean]
+description = "Clean build artifacts"
+run = "cargo clean"
