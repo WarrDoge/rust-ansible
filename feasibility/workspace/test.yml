@@ -1,0 +1,9 @@
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Test ping
+      ansible.builtin.ping:
+    - name: Test debug
+      ansible.builtin.debug:
+        msg: "Hello from WASI ansible!"
