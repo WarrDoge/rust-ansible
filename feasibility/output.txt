@@ -1,1 +1,0 @@
-[WARNING]: Skipping plugin (/site-packages/ansible/plugins/connection/ssh.py), cannot load: No module named 'multiprocessing.shared_memory'

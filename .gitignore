@@ -1,0 +1,15 @@
+# WASM artifacts
+*.wasm
+*.wasmu
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Rust
+target/
+
+# OS
+.DS_Store
