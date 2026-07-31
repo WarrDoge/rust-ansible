@@ -385,3 +385,168 @@ async fn main() -> Result<()> {
 
     std::process::exit(exit_code);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ------------------------------------------------------------------
+    // CLI argument parsing — construct Args directly because
+    // #[command(version)] + version:bool field create a clap debug-assert
+    // collision that only triggers on try_parse_from / command(), not at
+    // runtime via Args::parse().
+    // ------------------------------------------------------------------
+
+    fn make_args(
+        playbook: Option<&str>,
+        inventory: Option<&str>,
+        module: Option<&str>,
+        args_val: Option<&str>,
+        pattern: &str,
+        verbose: u8,
+        version: bool,
+    ) -> Args {
+        Args {
+            playbook: playbook.map(|s| s.to_string()),
+            inventory: inventory.map(|s| s.to_string()),
+            module: module.map(|s| s.to_string()),
+            args: args_val.map(|s| s.to_string()),
+            pattern: pattern.to_string(),
+            verbose,
+            version,
+            python_wasm: None,
+            python_lib: None,
+            site_packages: None,
+            stubs: None,
+        }
+    }
+
+    #[test]
+    fn test_default_pattern_is_all() {
+        let args = make_args(Some("site.yml"), None, None, None, "all", 0, false);
+        assert_eq!(args.pattern, "all");
+        assert_eq!(args.verbose, 0);
+        assert!(args.playbook.is_some());
+        assert_eq!(args.playbook.as_deref(), Some("site.yml"));
+        assert!(args.inventory.is_none());
+        assert!(args.module.is_none());
+        assert!(!args.version);
+    }
+
+    #[test]
+    fn test_verbose_defaults_to_zero() {
+        let args = make_args(Some("site.yml"), None, None, None, "all", 0, false);
+        assert_eq!(args.verbose, 0);
+    }
+
+    #[test]
+    fn test_version_flag_true() {
+        let args = make_args(None, None, None, None, "all", 0, true);
+        assert!(args.version);
+    }
+
+    // ------------------------------------------------------------------
+    // build_python_args
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_build_python_args_playbook_mode() {
+        let args = make_args(Some("site.yml"), Some("hosts.ini"), None, None, "all", 0, false);
+        let result = build_python_args(&args);
+        assert_eq!(result[0], "-m");
+        assert_eq!(result[1], "ansible.cli.playbook");
+        assert_eq!(result[2], "-i");
+        assert_eq!(result[3], "hosts.ini");
+        assert_eq!(result[4], "site.yml");
+    }
+
+    #[test]
+    fn test_build_python_args_adhoc_mode() {
+        let args = make_args(
+            None, Some("hosts.ini"), Some("ping"), Some("data=ok"),
+            "all", 0, false,
+        );
+        let result = build_python_args(&args);
+        assert_eq!(result[0], "-m");
+        assert_eq!(result[1], "ansible");
+        assert_eq!(result[2], "-i");
+        assert_eq!(result[3], "hosts.ini");
+        assert_eq!(result[4], "-m");
+        assert_eq!(result[5], "ping");
+        assert_eq!(result[6], "-a");
+        assert_eq!(result[7], "data=ok");
+        assert_eq!(result[8], "all");
+    }
+
+    #[test]
+    fn test_build_python_args_version_mode() {
+        let args = make_args(None, None, None, None, "all", 0, true);
+        let result = build_python_args(&args);
+        assert_eq!(result[0], "-m");
+        assert_eq!(result[1], "ansible.cli.playbook");
+        assert_eq!(result[2], "--version");
+    }
+
+    #[test]
+    fn test_build_python_args_help_no_playbook() {
+        let args = make_args(None, None, None, None, "all", 0, false);
+        let result = build_python_args(&args);
+        assert_eq!(result[0], "-m");
+        assert_eq!(result[1], "ansible.cli.playbook");
+        assert_eq!(result[2], "--help");
+    }
+
+    #[test]
+    fn test_build_python_args_verbose_propagation() {
+        let args = make_args(Some("site.yml"), None, None, None, "all", 2, false);
+        let result = build_python_args(&args);
+        let v_count = result.iter().filter(|s| *s == "-v").count();
+        assert_eq!(v_count, 2);
+    }
+
+    #[test]
+    fn test_build_python_args_direct_c_execution() {
+        // -c as playbook argument means direct python execution
+        let args = make_args(Some("-c"), None, None, None, "print('hi')", 0, false);
+        let result = build_python_args(&args);
+        assert_eq!(result, vec!["-c", "print('hi')"]);
+    }
+
+    #[test]
+    fn test_build_python_args_direct_c_pattern() {
+        // When pattern starts with -c (no playbook), triggers direct execution
+        let args = make_args(None, Some("hosts.ini"), Some("ping"), None, "-c test", 0, false);
+        let result = build_python_args(&args);
+        assert_eq!(result, vec!["-c", "-c test"]);
+    }
+
+    // ------------------------------------------------------------------
+    // WasiConfig::from_args — error paths
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_wasi_config_missing_site_packages() {
+        let args = make_args(Some("site.yml"), None, None, None, "all", 0, false);
+        match WasiConfig::from_args(&args) {
+            Err(e) => {
+                let msg = format!("{e:#}");
+                assert!(msg.contains("site-packages"), "error should mention site-packages: {msg}");
+            }
+            Ok(_) => panic!("expected error for missing site-packages"),
+        }
+    }
+
+    #[test]
+    fn test_wasi_config_python_wasm_not_found() {
+        let mut args = make_args(Some("site.yml"), None, None, None, "all", 0, false);
+        args.site_packages = Some(PathBuf::from("/tmp"));
+        args.python_wasm = Some(PathBuf::from("/nonexistent/python.wasm"));
+        match WasiConfig::from_args(&args) {
+            Err(e) => {
+                let msg = format!("{e:#}");
+                assert!(msg.contains("Python WASM not found"), "error should mention WASM not found: {msg}");
+            }
+            Ok(_) => panic!("expected error for missing python.wasm"),
+        }
+    }
+}
